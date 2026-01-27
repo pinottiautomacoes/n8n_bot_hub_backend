@@ -2,6 +2,8 @@ import firebase_admin
 from firebase_admin import credentials, auth
 from fastapi import HTTPException, status
 from app.core.config import settings
+import os
+import json
 
 if not firebase_admin._apps:
     service_account_info = json.loads(
