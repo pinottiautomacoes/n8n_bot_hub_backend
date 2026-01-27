@@ -11,7 +11,7 @@ class BusinessHourBase(BaseModel):
 
 
 class BusinessHourCreate(BusinessHourBase):
-    bot_id: UUID4
+    pass
 
 
 class BusinessHourUpdate(BaseModel):

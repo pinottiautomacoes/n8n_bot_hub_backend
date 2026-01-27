@@ -11,7 +11,6 @@ class AppointmentBase(BaseModel):
 
 
 class AppointmentCreate(BaseModel):
-    bot_id: UUID4
     contact_id: UUID4
     start_time: datetime
 

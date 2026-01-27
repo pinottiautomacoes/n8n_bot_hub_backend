@@ -7,7 +7,7 @@ from app.api.deps import get_current_user
 from app.models.user import User as UserModel
 from app.models.bot import Bot as BotModel
 from app.models.instance import Instance as InstanceModel
-from app.schemas.bot import Bot, BotUpdate
+from app.schemas.bot import Bot, BotCreate, BotUpdate
 
 
 router = APIRouter()
@@ -29,7 +29,7 @@ async def get_bots(
 
 @router.post("/", response_model=Bot)
 async def create_bot(
-    bot_data: Bot,
+    bot_data: BotCreate,
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
