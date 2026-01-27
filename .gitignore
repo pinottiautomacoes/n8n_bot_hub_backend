@@ -37,6 +37,9 @@ venv.bak/
 *.swp
 *.swo
 *~
+*.md
+.md
+/*.md
 
 # Alembic
 alembic/versions/*.pyc
