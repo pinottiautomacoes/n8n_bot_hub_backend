@@ -1,146 +1,149 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
-from uuid import UUID
+from typing import List, Any
+import requests
 from app.core.database import get_db
-from app.api.deps import get_current_user
-from app.models.user import User as UserModel
-from app.models.bot import Bot as BotModel
-from app.models.instance import Instance as InstanceModel
-from app.schemas.bot import Bot, BotCreate, BotUpdate
-
+from app.models.user import User
+from app.models.bot import Bot
+from app.schemas.bot import Bot as BotSchema, BotCreate, BotUpdate, BotResponse
+from app.api.api_v1.endpoints.auth import get_current_user
+from app.core.config import settings
 
 router = APIRouter()
 
-
-@router.get("/", response_model=List[Bot])
-async def get_bots(
-    current_user: UserModel = Depends(get_current_user),
-    db: Session = Depends(get_db)
+@router.get("/", response_model=List[BotResponse])
+def read_bots(
+    db: Session = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Get all bots owned by the current user.
+    Retrieve bots.
     """
-    bots = db.query(BotModel).join(InstanceModel).filter(
-        InstanceModel.user_id == current_user.id
-    ).all()
+    bots = db.query(Bot).filter(Bot.user_id == current_user.id).offset(skip).limit(limit).all()
     return bots
 
-
-@router.post("/", response_model=Bot, status_code=status.HTTP_201_CREATED)
-async def create_bot(
-    bot_data: BotCreate,
-    current_user: UserModel = Depends(get_current_user),
-    db: Session = Depends(get_db)
+@router.post("/", response_model=BotResponse)
+def create_bot(
+    *,
+    db: Session = Depends(get_db),
+    bot_in: BotCreate,
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Create a new bot.
+    Create new bot.
     """
-    # Verify the instance exists and belongs to the current user
-    instance = db.query(InstanceModel).filter(
-        InstanceModel.id == bot_data.instance_id,
-        InstanceModel.user_id == current_user.id
-    ).first()
-    
-    if not instance:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instance not found or does not belong to user"
-        )
-    
-    # Check if a bot already exists for this instance (1 bot per instance rule)
-    existing_bot = db.query(BotModel).filter(
-        BotModel.instance_id == bot_data.instance_id
-    ).first()
-    
-    if existing_bot:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A bot already exists for this instance"
-        )
-    
-    bot = BotModel(**bot_data.model_dump())
+    bot = Bot(
+        **bot_in.model_dump(),
+        user_id=current_user.id
+    )
     db.add(bot)
     db.commit()
     db.refresh(bot)
     return bot
 
-@router.get("/{bot_id}", response_model=Bot)
-async def get_bot(
-    bot_id: UUID,
-    current_user: UserModel = Depends(get_current_user),
-    db: Session = Depends(get_db)
+@router.get("/{bot_id}", response_model=BotResponse)
+def read_bot(
+    *,
+    db: Session = Depends(get_db),
+    bot_id: str,
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Get a specific bot by ID.
-    Validates ownership through instance.
+    Get bot by ID.
     """
-    bot = db.query(BotModel).join(InstanceModel).filter(
-        BotModel.id == bot_id,
-        InstanceModel.user_id == current_user.id
-    ).first()
-    
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.user_id == current_user.id).first()
     if not bot:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bot not found"
-        )
-    
+        raise HTTPException(status_code=404, detail="Bot not found")
     return bot
 
-
-@router.patch("/{bot_id}", response_model=Bot)
-async def update_bot(
-    bot_id: UUID,
-    bot_data: BotUpdate,
-    current_user: UserModel = Depends(get_current_user),
-    db: Session = Depends(get_db)
+@router.patch("/{bot_id}", response_model=BotResponse)
+def update_bot(
+    *,
+    db: Session = Depends(get_db),
+    bot_id: str,
+    bot_in: BotUpdate,
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Update a bot's configuration.
+    Update a bot.
     """
-    bot = db.query(BotModel).join(InstanceModel).filter(
-        BotModel.id == bot_id,
-        InstanceModel.user_id == current_user.id
-    ).first()
-    
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.user_id == current_user.id).first()
     if not bot:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bot not found"
-        )
+        raise HTTPException(status_code=404, detail="Bot not found")
     
-    # Update fields
-    update_data = bot_data.model_dump(exclude_unset=True)
+    update_data = bot_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(bot, field, value)
     
+    db.add(bot)
     db.commit()
     db.refresh(bot)
     return bot
 
-
-@router.delete("/{bot_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_bot(
-    bot_id: UUID,
-    current_user: UserModel = Depends(get_current_user),
-    db: Session = Depends(get_db)
+@router.delete("/{bot_id}", response_model=BotResponse)
+def delete_bot(
+    *,
+    db: Session = Depends(get_db),
+    bot_id: str,
+    current_user: User = Depends(get_current_user)
 ):
     """
     Delete a bot.
-    Validates ownership through instance.
     """
-    bot = db.query(BotModel).join(InstanceModel).filter(
-        BotModel.id == bot_id,
-        InstanceModel.user_id == current_user.id
-    ).first()
-    
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.user_id == current_user.id).first()
     if not bot:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bot not found"
-        )
+        raise HTTPException(status_code=404, detail="Bot not found")
     
+    # Hard delete for now, or use soft delete (enabled=False) if preferred
     db.delete(bot)
     db.commit()
-    return None
+    return bot
+
+# Instance Management Endpoints
+
+@router.post("/{bot_id}/instance", response_model=BotResponse)
+def create_instance(
+    *,
+    db: Session = Depends(get_db),
+    bot_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Create an instance on the Evolution API matching this bot.
+    """
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.user_id == current_user.id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    
+    # Logic to call Evolution API would go here
+    # For now, we simulate success or expect 'instance_name' to be set
+    if not bot.instance_name:
+         bot.instance_name = f"bot-{bot.id}"
+    
+    # TODO: Call Evolution API to create instance
+    # requests.post(f"{settings.EVOLUTION_URL}/instance/create", ...)
+
+    db.add(bot)
+    db.commit()
+    return bot
+
+@router.get("/{bot_id}/qrcode")
+def get_qrcode(
+    *,
+    db: Session = Depends(get_db),
+    bot_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get QR code for the bot's instance.
+    """
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.user_id == current_user.id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    
+    # TODO: Proxy to Evolution API
+    # return requests.get(f"{settings.EVOLUTION_URL}/instance/qrcode/{bot.instance_name}").json()
+    
+    return {"message": "QR Code logic pending implementation"}

@@ -1,34 +1,27 @@
 from pydantic import BaseModel, UUID4
 from datetime import time
-from typing import Optional
+from uuid import UUID
 
-
-# BusinessHour Schemas
 class BusinessHourBase(BaseModel):
-    weekday: int  # 0=Monday, 6=Sunday
+    weekday: int
     start_time: time
     end_time: time
-    is_available: bool = True
-
 
 class BusinessHourCreate(BusinessHourBase):
     pass
 
+class BusinessHourUpdate(BusinessHourBase):
+    pass
 
-class BusinessHourUpdate(BaseModel):
-    weekday: Optional[int] = None
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    is_available: Optional[bool] = None
+class BusinessHourInDBBase(BusinessHourBase):
+    id: UUID
+    bot_id: UUID
 
-
-class BusinessHourInDB(BusinessHourBase):
-    id: UUID4
-    bot_id: UUID4
-    
     class Config:
         from_attributes = True
 
+class BusinessHour(BusinessHourInDBBase):
+    pass
 
-class BusinessHour(BusinessHourInDB):
+class BusinessHourResponse(BusinessHourInDBBase):
     pass

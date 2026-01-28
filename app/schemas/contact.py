@@ -1,30 +1,29 @@
 from pydantic import BaseModel, UUID4
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
-
-# Contact Schemas
 class ContactBase(BaseModel):
-    external_contact_id: str
+    phone: str
     name: Optional[str] = None
-
 
 class ContactCreate(ContactBase):
-    instance_id: UUID4
-
+    pass  # bot_id is passed in path parameter usually
 
 class ContactUpdate(BaseModel):
+    phone: Optional[str] = None
     name: Optional[str] = None
 
-
-class ContactInDB(ContactBase):
-    id: UUID4
-    instance_id: UUID4
+class ContactInDBBase(ContactBase):
+    id: UUID
+    bot_id: UUID
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
+class Contact(ContactInDBBase):
+    pass
 
-class Contact(ContactInDB):
+class ContactResponse(ContactInDBBase):
     pass

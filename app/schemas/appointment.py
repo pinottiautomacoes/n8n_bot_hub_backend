@@ -1,36 +1,37 @@
 from pydantic import BaseModel, UUID4
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
-
-# Appointment Schemas
 class AppointmentBase(BaseModel):
+    contact_id: UUID
+    title: str
+    description: Optional[str] = None
     start_time: datetime
     end_time: datetime
-    status: str = "active"  # active | cancelled
+    status: str = "active"
 
-
-class AppointmentCreate(BaseModel):
-    contact_id: UUID4
-    start_time: datetime
-
+class AppointmentCreate(AppointmentBase):
+    pass
 
 class AppointmentUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     status: Optional[str] = None
 
-
-class AppointmentInDB(AppointmentBase):
-    id: UUID4
-    bot_id: UUID4
-    contact_id: UUID4
+class AppointmentInDBBase(AppointmentBase):
+    id: UUID
+    bot_id: UUID
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
+class Appointment(AppointmentInDBBase):
+    pass
 
-class Appointment(AppointmentInDB):
+class AppointmentResponse(AppointmentInDBBase):
     pass

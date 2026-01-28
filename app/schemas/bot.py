@@ -1,38 +1,47 @@
-from pydantic import BaseModel, UUID4
-from datetime import datetime
-from typing import Optional
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime, time
+from uuid import UUID
 
-
-# Bot Schemas
+# Shared properties
 class BotBase(BaseModel):
     name: str
-    personality: Optional[str] = None
-    company_info: Optional[str] = None
-    target_audience: Optional[str] = None
-    service_duration_minutes: int = 30
+    description: Optional[str] = None
+    
+    # Instance Info
+    instance_name: Optional[str] = None
+    instance_token: Optional[str] = None
+    
+    # Settings
+    greeting_message: Optional[str] = None
+    fallback_message: Optional[str] = None
+    auto_reply_enabled: bool = True
+    enabled: bool = True
+    timezone: str = "UTC"
 
-
+# Properties to receive via API on creation
 class BotCreate(BotBase):
-    instance_id: UUID4
+    pass
 
-
-class BotUpdate(BaseModel):
+# Properties to receive via API on update
+class BotUpdate(BotBase):
     name: Optional[str] = None
-    personality: Optional[str] = None
-    company_info: Optional[str] = None
-    target_audience: Optional[str] = None
-    service_duration_minutes: Optional[int] = None
+    auto_reply_enabled: Optional[bool] = None
+    enabled: Optional[bool] = None
 
-
-class BotInDB(BotBase):
-    id: UUID4
-    instance_id: UUID4
+# Properties shared by models stored in DB
+class BotInDBBase(BotBase):
+    id: UUID
+    user_id: UUID
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
+# Additional properties to return via API
+class Bot(BotInDBBase):
+    pass
 
-class Bot(BotInDB):
+class BotResponse(BotInDBBase):
     pass

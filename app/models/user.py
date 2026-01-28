@@ -17,7 +17,8 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # Relationships
-    instances = relationship("Instance", back_populates="user", cascade="all, delete-orphan")
+    # Relationships
+    bots = relationship("Bot", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User {self.email}>"

@@ -1,162 +1,136 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
-from typing import List
-from uuid import UUID
-from datetime import datetime, timedelta
+from typing import List, Optional
+from datetime import date, datetime, timedelta
 from app.core.database import get_db
-from app.api.deps import get_current_user
-from app.models.user import User as UserModel
-from app.models.appointment import Appointment as AppointmentModel
-from app.models.bot import Bot as BotModel
-from app.models.business_hour import BusinessHour as BusinessHourModel
-from app.models.instance import Instance as InstanceModel
-from app.schemas.appointment import Appointment, AppointmentCreate, AppointmentUpdate
-
+from app.models.user import User
+from app.models.bot import Bot
+from app.models.contact import Contact
+from app.models.appointment import Appointment
+from app.schemas.appointment import Appointment as AppointmentSchema, AppointmentCreate, AppointmentUpdate, AppointmentResponse
+from app.api.api_v1.endpoints.auth import get_current_user
 
 router = APIRouter()
 
-
-@router.get("/bots/{bot_id}/appointments", response_model=List[Appointment])
-async def list_appointments(
-    bot_id: UUID,
-    current_user: UserModel = Depends(get_current_user),
-    db: Session = Depends(get_db)
+@router.get("/", response_model=List[AppointmentResponse])
+def read_appointments(
+    *,
+    db: Session = Depends(get_db),
+    bot_id: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_user)
 ):
     """
-    List all appointments for a bot.
+    Retrieve appointments.
     """
-    # Verify bot ownership
-    bot = db.query(BotModel).join(InstanceModel).filter(
-        BotModel.id == bot_id,
-        InstanceModel.user_id == current_user.id
-    ).first()
+    query = db.query(Appointment)
     
-    if not bot:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bot not found"
-        )
-    
-    appointments = db.query(AppointmentModel).filter(
-        AppointmentModel.bot_id == bot_id
-    ).order_by(AppointmentModel.start_time.asc()).all()
-    
-    return appointments
+    if bot_id:
+        # Verify bot ownership
+        bot = db.query(Bot).filter(Bot.id == bot_id, Bot.user_id == current_user.id).first()
+        if not bot:
+            raise HTTPException(status_code=404, detail="Bot not found")
+        query = query.filter(Appointment.bot_id == bot_id)
+    else:
+        # Return all appointments for all user's bots
+        query = query.join(Bot).filter(Bot.user_id == current_user.id)
+        
+    if start_date:
+        query = query.filter(Appointment.start_time >= datetime.combine(start_date, datetime.min.time()))
+    if end_date:
+        # Inclusive end date
+        query = query.filter(Appointment.end_time <= datetime.combine(end_date, datetime.max.time()))
+        
+    return query.offset(skip).limit(limit).all()
 
-
-@router.post("/bots/{bot_id}/appointments", response_model=Appointment, status_code=status.HTTP_201_CREATED)
-async def create_appointment(
-    bot_id: UUID,
-    appointment_data: AppointmentCreate,
-    current_user: UserModel = Depends(get_current_user),
-    db: Session = Depends(get_db)
+@router.post("/", response_model=AppointmentResponse)
+def create_appointment(
+    *,
+    db: Session = Depends(get_db),
+    appointment_in: AppointmentCreate,
+    bot_id: str, # From query or inferred from contact? Better explicit.
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Create a new appointment.
-    Validates business hours, blocked periods, and checks for conflicts.
+    Create new appointment.
     """
-    # Verify bot ownership
-    bot = db.query(BotModel).join(InstanceModel).filter(
-        BotModel.id == bot_id,
-        InstanceModel.user_id == current_user.id
-    ).first()
-    
+    # Verify bot exists and owned by user
+    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.user_id == current_user.id).first()
     if not bot:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Bot not found"
-        )
-    
-    # Calculate end time based on service duration
-    start_time = appointment_data.start_time
-    end_time = start_time + timedelta(minutes=bot.service_duration_minutes)
-    
-    # Use availability service to check if slot is available
-    # This checks business hours, blocked periods, and existing appointments
-    from app.services.availability_service import check_time_slot_available
-    
-    is_available, reason = check_time_slot_available(
-        db=db,
-        bot_id=bot_id,
-        start_time=start_time,
-        end_time=end_time
-    )
-    
-    if not is_available:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=reason
-        )
-    
-    # Create appointment
-    appointment = AppointmentModel(
-        bot_id=bot_id,
-        contact_id=appointment_data.contact_id,
-        start_time=start_time,
-        end_time=end_time,
-        status="active"
+        raise HTTPException(status_code=404, detail="Bot not found")
+        
+    # Verify contact belongs to bot
+    contact = db.query(Contact).filter(Contact.id == appointment_in.contact_id, Contact.bot_id == bot_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found for this bot")
+
+    appointment = Appointment(
+        **appointment_in.model_dump(),
+        bot_id=bot_id
     )
     db.add(appointment)
     db.commit()
     db.refresh(appointment)
-    
     return appointment
 
-
-@router.patch("/appointments/{appointment_id}", response_model=Appointment)
-async def update_appointment(
-    appointment_id: UUID,
-    appointment_data: AppointmentUpdate,
-    current_user: UserModel = Depends(get_current_user),
-    db: Session = Depends(get_db)
+@router.get("/{appointment_id}", response_model=AppointmentResponse)
+def read_appointment(
+    *,
+    db: Session = Depends(get_db),
+    appointment_id: str,
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Update an appointment (mainly for cancellation).
+    Get appointment by ID.
     """
-    # Verify ownership
-    appointment = db.query(AppointmentModel).join(BotModel).join(InstanceModel).filter(
-        AppointmentModel.id == appointment_id,
-        InstanceModel.user_id == current_user.id
-    ).first()
-    
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).join(Bot).filter(Bot.user_id == current_user.id).first()
     if not appointment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Appointment not found"
-        )
-    
-    # Update fields
-    update_data = appointment_data.model_dump(exclude_unset=True)
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return appointment
+
+@router.patch("/{appointment_id}", response_model=AppointmentResponse)
+def update_appointment(
+    *,
+    db: Session = Depends(get_db),
+    appointment_id: str,
+    appointment_in: AppointmentUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update an appointment.
+    """
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).join(Bot).filter(Bot.user_id == current_user.id).first()
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+        
+    update_data = appointment_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(appointment, field, value)
-    
+        
+    db.add(appointment)
     db.commit()
     db.refresh(appointment)
     return appointment
 
-
-@router.delete("/appointments/{appointment_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def cancel_appointment(
-    appointment_id: UUID,
-    current_user: UserModel = Depends(get_current_user),
-    db: Session = Depends(get_db)
+@router.delete("/{appointment_id}", response_model=AppointmentResponse)
+def delete_appointment(
+    *,
+    db: Session = Depends(get_db),
+    appointment_id: str,
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Cancel an appointment (marks as cancelled, doesn't delete).
+    Soft delete an appointment (set status to cancelled).
     """
-    # Verify ownership
-    appointment = db.query(AppointmentModel).join(BotModel).join(InstanceModel).filter(
-        AppointmentModel.id == appointment_id,
-        InstanceModel.user_id == current_user.id
-    ).first()
-    
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).join(Bot).filter(Bot.user_id == current_user.id).first()
     if not appointment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Appointment not found"
-        )
-    
+        raise HTTPException(status_code=404, detail="Appointment not found")
+        
     appointment.status = "cancelled"
+    db.add(appointment)
     db.commit()
-    return None
+    db.refresh(appointment)
+    return appointment
