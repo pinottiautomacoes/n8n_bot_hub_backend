@@ -10,11 +10,11 @@ security = HTTPBearer()
 
 from app.core.security import verify_firebase_token
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     token = credentials.credentials
     try:
         # Use centralized security module for verification (handles initialization)
-        decoded_token = verify_firebase_token(token)
+        decoded_token = await verify_firebase_token(token)
         uid = decoded_token['uid']
         user = db.query(User).filter(User.firebase_uid == uid).first()
         if not user:
