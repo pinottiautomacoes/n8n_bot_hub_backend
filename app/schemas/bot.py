@@ -15,6 +15,8 @@ class BotBase(BaseModel):
     # Settings
     greeting_message: Optional[str] = None
     fallback_message: Optional[str] = None
+    personality: Optional[str] = None
+    company_info: Optional[str] = None
     auto_reply_enabled: bool = True
     enabled: bool = True
     timezone: str = "UTC"
@@ -28,6 +30,8 @@ class BotUpdate(BotBase):
     name: Optional[str] = None
     auto_reply_enabled: Optional[bool] = None
     enabled: Optional[bool] = None
+    personality: Optional[str] = None
+    company_info: Optional[str] = None
 
 # Properties shared by models stored in DB
 class BotInDBBase(BotBase):

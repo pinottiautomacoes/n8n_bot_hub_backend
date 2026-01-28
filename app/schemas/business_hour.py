@@ -6,6 +6,7 @@ class BusinessHourBase(BaseModel):
     weekday: int
     start_time: time
     end_time: time
+    is_available: bool = True
 
 class BusinessHourCreate(BusinessHourBase):
     pass

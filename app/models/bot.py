@@ -23,6 +23,8 @@ class Bot(Base):
     # Settings
     greeting_message = Column(Text, nullable=True)
     fallback_message = Column(Text, nullable=True)
+    personality = Column(Text, nullable=True)
+    company_info = Column(Text, nullable=True)
     auto_reply_enabled = Column(Boolean, default=True, nullable=False)
     
     # Status
