@@ -8,6 +8,7 @@ class BusinessHourBase(BaseModel):
     weekday: int  # 0=Monday, 6=Sunday
     start_time: time
     end_time: time
+    is_available: bool = True
 
 
 class BusinessHourCreate(BusinessHourBase):
@@ -18,6 +19,7 @@ class BusinessHourUpdate(BaseModel):
     weekday: Optional[int] = None
     start_time: Optional[time] = None
     end_time: Optional[time] = None
+    is_available: Optional[bool] = None
 
 
 class BusinessHourInDB(BusinessHourBase):

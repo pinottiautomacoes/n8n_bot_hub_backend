@@ -8,7 +8,7 @@ from app.models.user import User as UserModel
 from app.models.bot import Bot as BotModel
 from app.models.business_hour import BusinessHour as BusinessHourModel
 from app.models.instance import Instance as InstanceModel
-from app.schemas.business_hour import BusinessHour, BusinessHourCreate
+from app.schemas.business_hour import BusinessHour, BusinessHourCreate, BusinessHourUpdate
 
 
 router = APIRouter()
@@ -76,6 +76,44 @@ async def list_business_hours(
     ).all()
     
     return business_hours
+
+
+@router.put("/business-hours/{business_hour_id}", response_model=BusinessHour)
+async def update_business_hour(
+    business_hour_id: UUID,
+    business_hour_data: BusinessHourUpdate,
+    current_user: UserModel = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update a business hour.
+    """
+    # Verify ownership through bot and instance
+    business_hour = db.query(BusinessHourModel).join(BotModel).join(InstanceModel).filter(
+        BusinessHourModel.id == business_hour_id,
+        InstanceModel.user_id == current_user.id
+    ).first()
+    
+    if not business_hour:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Business hour not found"
+        )
+    
+    # Update fields if provided
+    if business_hour_data.weekday is not None:
+        business_hour.weekday = business_hour_data.weekday
+    if business_hour_data.start_time is not None:
+        business_hour.start_time = business_hour_data.start_time
+    if business_hour_data.end_time is not None:
+        business_hour.end_time = business_hour_data.end_time
+    if business_hour_data.is_available is not None:
+        business_hour.is_available = business_hour_data.is_available
+    
+    db.commit()
+    db.refresh(business_hour)
+    
+    return business_hour
 
 
 @router.delete("/business-hours/{business_hour_id}", status_code=status.HTTP_204_NO_CONTENT)

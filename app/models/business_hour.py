@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Time, ForeignKey
+from sqlalchemy import Column, Integer, Time, ForeignKey, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -13,6 +13,7 @@ class BusinessHour(Base):
     weekday = Column(Integer, nullable=False)  # 0=Monday, 6=Sunday
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
+    is_available = Column(Boolean, nullable=False, default=True)
     
     # Relationships
     bot = relationship("Bot", back_populates="business_hours")
