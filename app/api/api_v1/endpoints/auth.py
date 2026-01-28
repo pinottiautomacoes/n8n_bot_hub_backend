@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from firebase_admin import auth
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.user import User
@@ -9,15 +8,17 @@ from app.schemas.user import UserCreate, User as UserSchema, UserResponse
 router = APIRouter()
 security = HTTPBearer()
 
+from app.core.security import verify_firebase_token
+
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     token = credentials.credentials
     try:
-        decoded_token = auth.verify_id_token(token)
+        # Use centralized security module for verification (handles initialization)
+        decoded_token = verify_firebase_token(token)
         uid = decoded_token['uid']
         user = db.query(User).filter(User.firebase_uid == uid).first()
         if not user:
             # Auto-create user if valid firebase token but no DB record exists
-            # This simplifies the flow, or we could return 404
             user = User(
                 firebase_uid=uid, 
                 email=decoded_token.get('email'),
