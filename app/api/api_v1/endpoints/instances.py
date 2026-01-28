@@ -33,13 +33,13 @@ async def create_instance(
     db.commit()
     db.refresh(instance)
     
-    # Automatically create bot for instance (1 bot per instance rule)
-    bot = BotModel(
-        instance_id=instance.id,
-        name=f"{instance.name} Bot"
-    )
-    db.add(bot)
-    db.commit()
+    # # Automatically create bot for instance (1 bot per instance rule)
+    # bot = BotModel(
+    #     instance_id=instance.id,
+    #     name=f"{instance.name} Bot"
+    # )
+    # db.add(bot)
+    # db.commit()
     
     return instance
 
