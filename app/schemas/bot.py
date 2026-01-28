@@ -13,7 +13,7 @@ class BotBase(BaseModel):
 
 
 class BotCreate(BotBase):
-    pass
+    instance_id: UUID4
 
 
 class BotUpdate(BaseModel):
