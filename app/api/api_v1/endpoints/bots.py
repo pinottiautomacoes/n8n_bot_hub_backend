@@ -41,6 +41,9 @@ def create_bot(
     db.add(bot)
     db.commit()
     db.refresh(bot)
+
+    create_instance(db=db, bot_id=bot.id, current_user=current_user)
+
     return bot
 
 @router.get("/{bot_id}", response_model=BotResponse)
@@ -96,6 +99,7 @@ def delete_bot(
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
     
+    delete_instance(db=db, bot_id=bot.id, current_user=current_user)
     # Hard delete for now, or use soft delete (enabled=False) if preferred
     db.delete(bot)
     db.commit()
