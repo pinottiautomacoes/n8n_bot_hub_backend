@@ -191,7 +191,7 @@ def get_instance_status(
     if not bot or not bot.instance_name:
         raise HTTPException(status_code=404, detail="Bot or instance not found")
 
-    result = _call_evolution_api("GET", f"/instance/connectionState/{bot.instance_name}")
+    result = _call_evolution_api("GET", f"/instance/connectionState/bot-{bot.instance_name}")
     return result
 
 @router.get("/{bot_id}/qrcode")
@@ -213,7 +213,7 @@ def get_qrcode(
          raise HTTPException(status_code=400, detail="Instance not created yet")
     
     # Evolution API /instance/connect/{instance} returns the QR code (often base64 inside JSON)
-    result = _call_evolution_api("GET", f"/instance/connect/{bot.instance_name}")
+    result = _call_evolution_api("GET", f"/instance/connect/bot-{bot.instance_name}")
     return result
 
 @router.post("/{bot_id}/instance/restart")
@@ -230,7 +230,7 @@ def restart_instance(
     if not bot or not bot.instance_name:
          raise HTTPException(status_code=404, detail="Bot or instance not found")
          
-    result = _call_evolution_api("POST", f"/instance/restart/{bot.instance_name}")
+    result = _call_evolution_api("POST", f"/instance/restart/bot-{bot.instance_name}")
     return result
 
 @router.delete("/{bot_id}/instance")
@@ -247,7 +247,7 @@ def delete_instance(
     if not bot or not bot.instance_name:
          raise HTTPException(status_code=404, detail="Bot or instance not found")
          
-    _call_evolution_api("DELETE", f"/instance/delete/{bot.instance_name}")
+    _call_evolution_api("DELETE", f"/instance/delete/bot-{bot.instance_name}")
     
     bot.instance_name = None
     db.add(bot)
