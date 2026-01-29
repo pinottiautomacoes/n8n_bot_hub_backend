@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "n8n Bot Hub Backend"
     DEBUG: bool = False
     
+    # Evolution API
+    EVOLUTION_API_URL: str
+    EVOLUTION_API_KEY: str
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
