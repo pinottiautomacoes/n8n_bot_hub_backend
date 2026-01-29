@@ -4,7 +4,8 @@ from app.api.api_v1.endpoints import (
     bots,
     business_hours,
     appointments,
-    contacts
+    contacts,
+    blocked_periods
 )
 
 api_router = APIRouter()
@@ -23,3 +24,6 @@ api_router.include_router(appointments.router, prefix="/appointments", tags=["ap
 
 # Contact routes
 api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"])
+
+# Blocked Periods routes
+api_router.include_router(blocked_periods.router, prefix="/blocked-periods", tags=["blocked-periods"])

@@ -21,11 +21,8 @@ class Bot(Base):
     instance_token = Column(String, nullable=True)
     
     # Settings
-    greeting_message = Column(Text, nullable=True)
-    fallback_message = Column(Text, nullable=True)
     personality = Column(Text, nullable=True)
     company_info = Column(Text, nullable=True)
-    auto_reply_enabled = Column(Boolean, default=True, nullable=False)
     
     # Status
     enabled = Column(Boolean, default=True, nullable=False)
@@ -39,6 +36,7 @@ class Bot(Base):
     business_hours = relationship("BusinessHour", back_populates="bot", cascade="all, delete-orphan")
     contacts = relationship("Contact", back_populates="bot", cascade="all, delete-orphan")
     appointments = relationship("Appointment", back_populates="bot", cascade="all, delete-orphan")
+    blocked_periods = relationship("BlockedPeriod", back_populates="bot", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Bot {self.name}>"
