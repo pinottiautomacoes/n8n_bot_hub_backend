@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date, datetime, timedelta
@@ -7,7 +7,10 @@ from app.models.user import User
 from app.models.bot import Bot
 from app.models.contact import Contact
 from app.models.appointment import Appointment
-from app.schemas.appointment import Appointment as AppointmentSchema, AppointmentCreate, AppointmentUpdate, AppointmentResponse
+from app.models.blocked_period import BlockedPeriod
+from app.models.business_hour import BusinessHour
+from app.schemas.appointment import Appointment as AppointmentSchema, AppointmentCreate, AppointmentUpdate, AppointmentResponse, AvailableSlotsResponse, AvailableTimeSlot
+from zoneinfo import ZoneInfo
 from app.api.api_v1.endpoints.auth import get_current_user
 
 router = APIRouter()
@@ -45,6 +48,129 @@ def read_appointments(
         query = query.filter(Appointment.end_time <= datetime.combine(end_date, datetime.max.time()))
         
     return query.offset(skip).limit(limit).all()
+
+@router.get("/available-slots", response_model=AvailableSlotsResponse)
+def get_available_slots(
+    *,
+    db: Session = Depends(get_db),
+    instance_name: str = Query(..., alias="instanceName"),
+    date_param: date = Query(..., alias="date"),
+):
+    """
+    Get available time slots for a specific bot instance and date.
+    Checks business hours, blocked periods, and existing appointments.
+    """
+    # 1. Find Bot
+    bot = db.query(Bot).filter(Bot.instance_name == instance_name).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot instance not found")
+
+    if not bot.enabled:
+        raise HTTPException(status_code=400, detail="Bot is disabled")
+
+    # 2. Setup Timezone
+    try:
+        tz = ZoneInfo(bot.timezone)
+    except Exception:
+        tz = ZoneInfo("UTC")  # Fallback
+
+    # 3. Determine Business Hours for the day
+    weekday = date_param.weekday() # 0=Monday
+    business_hour = db.query(BusinessHour).filter(
+        BusinessHour.bot_id == bot.id,
+        BusinessHour.weekday == weekday,
+        BusinessHour.is_available == True
+    ).first()
+
+    if not business_hour:
+        # Closed on this day
+        return AvailableSlotsResponse(available_slots=[])
+
+    # Convert Business Hours to UTC for the specific date
+    # Note: business_hour.start_time is a time object (naive)
+    
+    # Create naive datetime from date + time
+    bh_start_naive = datetime.combine(date_param, business_hour.start_time)
+    bh_end_naive = datetime.combine(date_param, business_hour.end_time)
+
+    # Localize to bot's timezone
+    bh_start_local = bh_start_naive.replace(tzinfo=tz)
+    bh_end_local = bh_end_naive.replace(tzinfo=tz)
+
+    # Convert to UTC for DB querying
+    open_start_utc = bh_start_local.astimezone(ZoneInfo("UTC"))
+    open_end_utc = bh_end_local.astimezone(ZoneInfo("UTC"))
+
+    # If end time is before start time (e.g. crossing midnight), handle it? 
+    # Current logic assumes same-day business hours logic for simplicity.
+    if open_end_utc <= open_start_utc:
+         # If it wrapped around, we might need to handle it. 
+         # Assuming simple 9-5 for now.
+         pass
+
+    # 4. Fetch Busy Intervals (Appointments & Blocked Periods)
+    # Filter for anything overlapping the open window
+    
+    # Appointments
+    appointments = db.query(Appointment).filter(
+        Appointment.bot_id == bot.id,
+        Appointment.status == "active",
+        Appointment.start_time < open_end_utc.replace(tzinfo=None), # DB is usually naive UTC
+        Appointment.end_time > open_start_utc.replace(tzinfo=None)
+    ).all()
+
+    # Blocked Periods
+    blocked_periods = db.query(BlockedPeriod).filter(
+        BlockedPeriod.bot_id == bot.id,
+        BlockedPeriod.start_time < open_end_utc.replace(tzinfo=None),
+        BlockedPeriod.end_time > open_start_utc.replace(tzinfo=None)
+    ).all()
+
+    # 5. Process Availability
+    busy_intervals = []
+    
+    # Helper to standardize to aware UTC
+    def to_aware_utc(dt):
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=ZoneInfo("UTC"))
+        return dt.astimezone(ZoneInfo("UTC"))
+
+    for appt in appointments:
+        start = to_aware_utc(appt.start_time)
+        end = to_aware_utc(appt.end_time)
+        busy_intervals.append((start, end))
+
+    for bp in blocked_periods:
+        start = to_aware_utc(bp.start_time)
+        end = to_aware_utc(bp.end_time)
+        busy_intervals.append((start, end))
+        
+    # Sort by start time
+    busy_intervals.sort(key=lambda x: x[0])
+
+    available_slots = []
+    
+    # 6. Generate fixed slots
+    duration = timedelta(minutes=bot.appointment_duration)
+    current_slot_start = open_start_utc
+    
+    while current_slot_start + duration <= open_end_utc:
+        current_slot_end = current_slot_start + duration
+        is_conflicted = False
+        
+        for busy_start, busy_end in busy_intervals:
+            # Check for overlap:
+            # (StartA < EndB) and (EndA > StartB)
+            if busy_start < current_slot_end and busy_end > current_slot_start:
+                is_conflicted = True
+                break
+        
+        if not is_conflicted:
+            available_slots.append(AvailableTimeSlot(start=current_slot_start, end=current_slot_end))
+            
+        current_slot_start += duration
+
+    return AvailableSlotsResponse(available_slots=available_slots)
 
 @router.post("/", response_model=AppointmentResponse)
 def create_appointment(

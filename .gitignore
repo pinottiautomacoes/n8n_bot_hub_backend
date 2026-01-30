@@ -40,6 +40,7 @@ venv.bak/
 *.md
 .md
 /*.md
+/.agent
 
 # Alembic
 alembic/versions/*.pyc

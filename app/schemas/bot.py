@@ -17,6 +17,7 @@ class BotBase(BaseModel):
     company_info: Optional[str] = None
     enabled: bool = True
     timezone: str = "UTC"
+    appointment_duration: int = 30
 
 # Properties to receive via API on creation
 class BotCreate(BotBase):
@@ -28,6 +29,7 @@ class BotUpdate(BotBase):
     enabled: Optional[bool] = None
     personality: Optional[str] = None
     company_info: Optional[str] = None
+    appointment_duration: Optional[int] = None
 
 # Properties shared by models stored in DB
 class BotInDBBase(BotBase):

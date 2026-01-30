@@ -35,3 +35,10 @@ class Appointment(AppointmentInDBBase):
 
 class AppointmentResponse(AppointmentInDBBase):
     pass
+
+class AvailableTimeSlot(BaseModel):
+    start: datetime
+    end: datetime
+
+class AvailableSlotsResponse(BaseModel):
+    available_slots: list[AvailableTimeSlot]
