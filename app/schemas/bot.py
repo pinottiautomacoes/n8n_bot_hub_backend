@@ -16,7 +16,7 @@ class BotBase(BaseModel):
     personality: Optional[str] = None
     company_info: Optional[str] = None
     enabled: bool = True
-    timezone: str = "UTC"
+    timezone: str = "America/Sao_Paulo"
     appointment_duration: int = 30
 
 # Properties to receive via API on creation

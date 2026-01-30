@@ -72,10 +72,14 @@ def get_available_slots(
     try:
         tz = ZoneInfo(bot.timezone)
     except Exception:
-        tz = ZoneInfo("UTC")  # Fallback
+        tz = ZoneInfo("America/Sao_Paulo")  # Fallback
 
     # 3. Determine Business Hours for the day
-    weekday = date_param.weekday() # 0=Monday
+    # n8n/User request: 0=Sunday, 1=Monday, ... 6=Saturday
+    # Python date.weekday(): 0=Monday, ... 6=Sunday
+    # Mapping: (python_weekday + 1) % 7 => 0=Sunday, 1=Monday
+    weekday = (date_param.weekday() + 1) % 7
+    
     business_hour = db.query(BusinessHour).filter(
         BusinessHour.bot_id == bot.id,
         BusinessHour.weekday == weekday,

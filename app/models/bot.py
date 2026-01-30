@@ -26,7 +26,7 @@ class Bot(Base):
     
     # Status
     enabled = Column(Boolean, default=True, nullable=False)
-    timezone = Column(String, default="UTC", nullable=False)
+    timezone = Column(String, default="America/Sao_Paulo", nullable=False)
     appointment_duration = Column(Integer, default=30, nullable=False)
     
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
