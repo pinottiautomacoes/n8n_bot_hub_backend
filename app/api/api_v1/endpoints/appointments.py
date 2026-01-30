@@ -158,6 +158,11 @@ def get_available_slots(
     duration = timedelta(minutes=bot.appointment_duration)
     current_slot_start = open_start_utc
     
+    sp_tz = ZoneInfo("America/Sao_Paulo")
+
+    def utc_to_sp(dt: datetime) -> datetime:
+        return dt.astimezone(sp_tz)
+
     while current_slot_start + duration <= open_end_utc:
         current_slot_end = current_slot_start + duration
         is_conflicted = False
@@ -170,7 +175,7 @@ def get_available_slots(
                 break
         
         if not is_conflicted:
-            available_slots.append(AvailableTimeSlot(start=current_slot_start, end=current_slot_end))
+            available_slots.append(AvailableTimeSlot(start=utc_to_sp(current_slot_start), end=utc_to_sp(current_slot_end)))
             
         current_slot_start += duration
 
