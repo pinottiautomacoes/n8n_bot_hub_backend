@@ -172,6 +172,44 @@ def get_available_slots(
 
     return AvailableSlotsResponse(available_slots=available_slots)
 
+@router.get("/by-contact", response_model=List[AppointmentResponse])
+def get_appointments_by_contact(
+    *,
+    db: Session = Depends(get_db),
+    instance_name: str = Query(..., alias="instanceName"),
+    contact_phone: str = Query(..., alias="contactNumber"),
+):
+    """
+    Get all upcoming appointments for a contact by phone number.
+    """
+    # 1. Find Bot
+    bot = db.query(Bot).filter(Bot.instance_name == instance_name).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot instance not found")
+
+    # 2. Find Contact
+    contact = db.query(Contact).filter(
+        Contact.phone == contact_phone,
+        Contact.bot_id == bot.id
+    ).first()
+    
+    if not contact:
+        # If contact doesn't exist, they can't have appointments
+        return []
+
+    # 3. Find Upcoming Appointments
+    # Ensure they are active and in the future
+    current_time_utc = datetime.utcnow()
+    
+    appointments = db.query(Appointment).filter(
+        Appointment.contact_id == contact.id,
+        Appointment.bot_id == bot.id,
+        Appointment.status == "active",
+        Appointment.start_time >= current_time_utc
+    ).order_by(Appointment.start_time.asc()).all()
+    
+    return appointments
+
 @router.post("/", response_model=AppointmentResponse)
 def create_appointment(
     *,

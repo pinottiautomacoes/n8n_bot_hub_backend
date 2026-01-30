@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Any
 import requests
@@ -23,6 +23,20 @@ def read_bots(
     """
     bots = db.query(Bot).filter(Bot.user_id == current_user.id).offset(skip).limit(limit).all()
     return bots
+
+@router.get("/by-instance", response_model=BotResponse)
+def get_bot_by_instance(
+    *,
+    db: Session = Depends(get_db),
+    instance_name: str = Query(..., alias="instanceName")
+):
+    """
+    Get bot by instance name (public/service access).
+    """
+    bot = db.query(Bot).filter(Bot.instance_name == instance_name).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    return bot
 
 @router.post("/", response_model=BotResponse)
 def create_bot(
