@@ -171,7 +171,7 @@ def create_instance(
         "instanceName": bot.instance_name,
         "qrcode": True,
         "integration": "WHATSAPP-BAILEYS",
-         # We can make webhook URL configurable later or derive it from settings
+        "groupsIgnore": True,
         "webhook": {
           "url": settings.N8N_WEBHOOK_URL, 
           "byEvents": False,
