@@ -33,7 +33,5 @@ class Bot(Base):
     # Relationships
     user = relationship("User", back_populates="bots")
     
-    services = relationship("Service", back_populates="bot", cascade="all, delete-orphan")
-    
     def __repr__(self):
         return f"<Bot {self.name}>"
