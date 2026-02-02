@@ -9,7 +9,7 @@ class BlockedPeriodBase(BaseModel):
     reason: Optional[str] = None
 
 class BlockedPeriodCreate(BlockedPeriodBase):
-    bot_id: UUID
+    doctor_id: UUID
 
 class BlockedPeriodUpdate(BaseModel):
     start_time: Optional[datetime] = None
@@ -18,7 +18,7 @@ class BlockedPeriodUpdate(BaseModel):
 
 class BlockedPeriodInDBBase(BlockedPeriodBase):
     id: UUID
-    bot_id: UUID
+    doctor_id: UUID
     created_at: datetime
     updated_at: datetime
 

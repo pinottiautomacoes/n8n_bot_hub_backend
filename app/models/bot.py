@@ -34,7 +34,6 @@ class Bot(Base):
     user = relationship("User", back_populates="bots")
     contacts = relationship("Contact", back_populates="bot", cascade="all, delete-orphan")
     appointments = relationship("Appointment", back_populates="bot", cascade="all, delete-orphan")
-    blocked_periods = relationship("BlockedPeriod", back_populates="bot", cascade="all, delete-orphan")
     
     doctors = relationship("Doctor", back_populates="bot", cascade="all, delete-orphan")
     services = relationship("Service", back_populates="bot", cascade="all, delete-orphan")

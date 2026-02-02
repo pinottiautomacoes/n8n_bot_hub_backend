@@ -10,7 +10,7 @@ class BlockedPeriod(Base):
     __tablename__ = "blocked_periods"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    bot_id = Column(UUID(as_uuid=True), ForeignKey("bots.id", ondelete="CASCADE"), nullable=False, index=True)
+    doctor_id = Column(UUID(as_uuid=True), ForeignKey("doctors.id", ondelete="CASCADE"), nullable=False, index=True)
     start_time = Column(DateTime, nullable=False, index=True)
     end_time = Column(DateTime, nullable=False, index=True)
     reason = Column(String, nullable=True)
@@ -18,7 +18,7 @@ class BlockedPeriod(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # Relationships
-    bot = relationship("Bot", back_populates="blocked_periods")
+    doctor = relationship("Doctor", back_populates="blocked_periods")
     
     def __repr__(self):
         return f"<BlockedPeriod {self.start_time} - {self.end_time}>"
