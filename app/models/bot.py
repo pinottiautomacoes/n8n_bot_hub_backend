@@ -32,10 +32,7 @@ class Bot(Base):
     
     # Relationships
     user = relationship("User", back_populates="bots")
-    contacts = relationship("Contact", back_populates="bot", cascade="all, delete-orphan")
-    appointments = relationship("Appointment", back_populates="bot", cascade="all, delete-orphan")
     
-    doctors = relationship("Doctor", back_populates="bot", cascade="all, delete-orphan")
     services = relationship("Service", back_populates="bot", cascade="all, delete-orphan")
     
     def __repr__(self):

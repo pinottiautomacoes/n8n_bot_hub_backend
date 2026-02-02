@@ -10,7 +10,7 @@ class Doctor(Base):
     __tablename__ = "doctors"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    bot_id = Column(UUID(as_uuid=True), ForeignKey("bots.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     name = Column(String, nullable=False)
     email = Column(String, nullable=False)
@@ -21,7 +21,7 @@ class Doctor(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # Relationships
-    bot = relationship("Bot", back_populates="doctors")
+    user = relationship("User", back_populates="doctors")
     appointments = relationship("Appointment", back_populates="doctor", cascade="all, delete-orphan")
     business_hours = relationship("BusinessHour", back_populates="doctor", cascade="all, delete-orphan")
     blocked_periods = relationship("BlockedPeriod", back_populates="doctor", cascade="all, delete-orphan")

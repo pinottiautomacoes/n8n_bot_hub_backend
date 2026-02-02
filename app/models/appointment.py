@@ -10,7 +10,7 @@ class Appointment(Base):
     __tablename__ = "appointments"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    bot_id = Column(UUID(as_uuid=True), ForeignKey("bots.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     doctor_id = Column(UUID(as_uuid=True), ForeignKey("doctors.id", ondelete="CASCADE"), nullable=True, index=True)
     service_id = Column(UUID(as_uuid=True), ForeignKey("services.id", ondelete="CASCADE"), nullable=True, index=True)
     contact_id = Column(UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -25,7 +25,7 @@ class Appointment(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # Relationships
-    bot = relationship("Bot", back_populates="appointments")
+    user = relationship("User", back_populates="appointments")
     doctor = relationship("Doctor", back_populates="appointments")
     service = relationship("Service", back_populates="appointments")
     contact = relationship("Contact", back_populates="appointments")

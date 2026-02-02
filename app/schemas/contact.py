@@ -16,7 +16,7 @@ class ContactUpdate(BaseModel):
 
 class ContactInDBBase(ContactBase):
     id: UUID
-    bot_id: UUID
+    user_id: UUID
     created_at: datetime
 
     class Config:

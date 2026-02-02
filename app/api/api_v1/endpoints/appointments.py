@@ -21,7 +21,6 @@ router = APIRouter()
 def read_appointments(
     *,
     db: Session = Depends(get_db),
-    bot_id: Optional[str] = None,
     doctor_id: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
@@ -30,20 +29,10 @@ def read_appointments(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Retrieve appointments.
+    Retrieve appointments for the current user.
     """
-    query = db.query(Appointment)
+    query = db.query(Appointment).filter(Appointment.user_id == current_user.id)
     
-    if bot_id:
-        # Verify bot ownership
-        bot = db.query(Bot).filter(Bot.id == bot_id, Bot.user_id == current_user.id).first()
-        if not bot:
-            raise HTTPException(status_code=404, detail="Bot not found")
-        query = query.filter(Appointment.bot_id == bot_id)
-    else:
-        # Return all appointments for all user's bots
-        query = query.join(Bot).filter(Bot.user_id == current_user.id)
-        
     if doctor_id:
         query = query.filter(Appointment.doctor_id == doctor_id)
 
@@ -76,6 +65,7 @@ def get_available_slots(
         raise HTTPException(status_code=400, detail="Bot is disabled")
         
     # 2. Find Doctor & Service
+    # Ensure they belong to the bot
     doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.bot_id == bot.id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found for this bot")
@@ -91,9 +81,6 @@ def get_available_slots(
         tz = ZoneInfo("America/Sao_Paulo")  # Fallback
 
     # 4. Determine Business Hours for the Doctor
-    # n8n/User request: 0=Sunday, 1=Monday, ... 6=Saturday
-    # Python date.weekday(): 0=Monday, ... 6=Sunday
-    # Mapping: (python_weekday + 1) % 7 => 0=Sunday, 1=Monday
     weekday = (date_param.weekday() + 1) % 7
     
     business_hour = db.query(BusinessHour).filter(
@@ -107,7 +94,6 @@ def get_available_slots(
         return AvailableSlotsResponse(available_slots=[])
 
     # Convert Business Hours to UTC for the specific date
-    # Create naive datetime from date + time
     bh_start_naive = datetime.combine(date_param, business_hour.start_time)
     bh_end_naive = datetime.combine(date_param, business_hour.end_time)
 
@@ -125,8 +111,7 @@ def get_available_slots(
 
     # 5. Fetch Busy Intervals
     # Appointments for this Doctor
-    # (Assuming doctor can't be in two places, even on different bots? Doctors are scoped to Bot currently)
-    
+    # Only active appointments count as busy
     appointments = db.query(Appointment).filter(
         Appointment.doctor_id == doctor.id,
         Appointment.status == "active",
@@ -135,7 +120,7 @@ def get_available_slots(
     ).all()
 
     # Blocked Periods
-    # Now filtered by Doctor
+    # Filtered by Doctor
     blocked_periods = db.query(BlockedPeriod).filter(
         BlockedPeriod.doctor_id == doctor.id,
         BlockedPeriod.start_time < open_end_utc.replace(tzinfo=None),
@@ -199,27 +184,31 @@ def get_appointments_by_contact(
 ):
     """
     Get all upcoming appointments for a contact by phone number.
+    Filters by the Bot's User to find the correct Contact.
     """
     # 1. Find Bot
     bot = db.query(Bot).filter(Bot.instance_name == instance_name).first()
     if not bot:
         raise HTTPException(status_code=404, detail="Bot instance not found")
 
-    # 2. Find Contact
+    # 2. Find Contact via User
+    # Contact is now linked to User (bot.user_id)
     contact = db.query(Contact).filter(
         Contact.phone == contact_phone,
-        Contact.bot_id == bot.id
+        Contact.user_id == bot.user_id
     ).first()
     
     if not contact:
         return []
 
     # 3. Find Upcoming Appointments
+    # We might want to filter only appointments related to this bot? 
+    # Since Appointment -> Doctor -> Bot, we can join.
     current_time_utc = datetime.utcnow()
     
-    appointments = db.query(Appointment).filter(
+    appointments = db.query(Appointment).join(Doctor).filter(
         Appointment.contact_id == contact.id,
-        Appointment.bot_id == bot.id,
+        Doctor.bot_id == bot.id, # Encapsulate to this bot
         Appointment.status == "active",
         Appointment.start_time >= current_time_utc
     ).order_by(Appointment.start_time.asc()).all()
@@ -231,42 +220,40 @@ def create_appointment(
     *,
     db: Session = Depends(get_db),
     appointment_in: AppointmentCreate,
-    bot_id: str,
     current_user: User = Depends(get_current_user)
 ):
     """
     Create new appointment.
     """
-    # Verify bot exists and owned by user
-    bot = db.query(Bot).filter(Bot.id == bot_id, Bot.user_id == current_user.id).first()
-    if not bot:
-        raise HTTPException(status_code=404, detail="Bot not found")
-        
-    # Verify contact belongs to bot
-    contact = db.query(Contact).filter(Contact.id == appointment_in.contact_id, Contact.bot_id == bot_id).first()
+    # Verify contact belongs to current user
+    contact = db.query(Contact).filter(Contact.id == appointment_in.contact_id, Contact.user_id == current_user.id).first()
     if not contact:
-        raise HTTPException(status_code=404, detail="Contact not found for this bot")
+        raise HTTPException(status_code=404, detail="Contact not found")
 
-    # Verify Doctor and Service if provided (or required?)
-    # User said "must be related", so we should probably validate deeply.
-    if appointment_in.doctor_id:
-        doctor = db.query(Doctor).filter(Doctor.id == appointment_in.doctor_id, Doctor.bot_id == bot_id).first()
-        if not doctor:
-            raise HTTPException(status_code=404, detail="Doctor not found for this bot")
-    else:
-        # Should we require it? "must be related". I'll enforce it.
-        raise HTTPException(status_code=400, detail="Doctor ID is required")
-        
-    if appointment_in.service_id:
-        service = db.query(Service).filter(Service.id == appointment_in.service_id, Service.bot_id == bot_id).first()
-        if not service:
-            raise HTTPException(status_code=404, detail="Service not found for this bot")
-    else:
+    # Verify Doctor
+    # Doctor must belong to a bot owned by current_user.
+    if not appointment_in.doctor_id:
+         raise HTTPException(status_code=400, detail="Doctor ID is required")
+         
+    doctor = db.query(Doctor).filter(Doctor.id == appointment_in.doctor_id).join(Bot).filter(Bot.user_id == current_user.id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found or authorization failed")
+
+    # Verify Service
+    if not appointment_in.service_id:
          raise HTTPException(status_code=400, detail="Service ID is required")
+         
+    service = db.query(Service).filter(Service.id == appointment_in.service_id).join(Bot).filter(Bot.user_id == current_user.id).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found or authorization failed")
+
+    # Optional: Verify Doctor and Service belong to same Bot?
+    if doctor.bot_id != service.bot_id:
+        raise HTTPException(status_code=400, detail="Doctor and Service must belong to the same Bot")
 
     appointment = Appointment(
         **appointment_in.model_dump(),
-        bot_id=bot_id
+        user_id=current_user.id
     )
     db.add(appointment)
     db.commit()
@@ -283,7 +270,7 @@ def read_appointment(
     """
     Get appointment by ID.
     """
-    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).join(Bot).filter(Bot.user_id == current_user.id).first()
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id, Appointment.user_id == current_user.id).first()
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
     return appointment
@@ -299,7 +286,7 @@ def update_appointment(
     """
     Update an appointment.
     """
-    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).join(Bot).filter(Bot.user_id == current_user.id).first()
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id, Appointment.user_id == current_user.id).first()
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
         
@@ -322,7 +309,7 @@ def delete_appointment(
     """
     Soft delete an appointment (set status to cancelled).
     """
-    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).join(Bot).filter(Bot.user_id == current_user.id).first()
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id, Appointment.user_id == current_user.id).first()
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
         

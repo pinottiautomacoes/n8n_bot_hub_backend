@@ -25,7 +25,7 @@ class AppointmentUpdate(BaseModel):
 
 class AppointmentInDBBase(AppointmentBase):
     id: UUID
-    bot_id: UUID
+    user_id: UUID
     created_at: datetime
     updated_at: datetime
 

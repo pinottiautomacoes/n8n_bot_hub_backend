@@ -13,7 +13,7 @@ class DoctorCreate(DoctorBase):
 
 class DoctorResponse(DoctorBase):
     id: UUID4
-    bot_id: UUID4
+    user_id: UUID4
     created_at: datetime
     updated_at: datetime
 

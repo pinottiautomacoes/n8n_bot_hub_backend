@@ -10,13 +10,13 @@ class Contact(Base):
     __tablename__ = "contacts"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    bot_id = Column(UUID(as_uuid=True), ForeignKey("bots.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     phone = Column(String, nullable=False)  # Renamed from external_contact_id
     name = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
-    bot = relationship("Bot", back_populates="contacts")
+    user = relationship("User", back_populates="contacts")
     appointments = relationship("Appointment", back_populates="contact", cascade="all, delete-orphan")
     
     def __repr__(self):
