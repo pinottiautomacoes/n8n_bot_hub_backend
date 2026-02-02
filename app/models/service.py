@@ -10,7 +10,7 @@ class Service(Base):
     __tablename__ = "services"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    bot_id = Column(UUID(as_uuid=True), ForeignKey("bots.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
@@ -21,7 +21,7 @@ class Service(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # Relationships
-    bot = relationship("Bot", back_populates="services")
+    user = relationship("User", back_populates="services")
     appointments = relationship("Appointment", back_populates="service", cascade="all, delete-orphan")
     
     def __repr__(self):
