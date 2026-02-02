@@ -21,7 +21,7 @@ def read_blocked_periods(
     """
     Get blocked periods for a specific doctor.
     """
-    doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.user_id, current_user.id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.user_id == current_user.id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
 
