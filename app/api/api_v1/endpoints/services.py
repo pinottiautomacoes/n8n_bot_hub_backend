@@ -14,14 +14,14 @@ router = APIRouter()
 def read_services(
     *,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
     skip: int = 0,
-    limit: int = 100
+    limit: int = 100,
+    current_user: User = Depends(get_current_user)
 ):
     """
     Retrieve services for a specific user.
     """
-    query = db.query(Service).filter(Service.user_id == current_user.id).all()
+    query = db.query(Service).filter(Service.user_id == current_user.id)
     return query.offset(skip).limit(limit).all()
 
 @router.post("/", response_model=ServiceResponse)
