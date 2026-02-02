@@ -21,16 +21,10 @@ def read_business_hours(
     """
     Get business hours for a specific doctor.
     """
-    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.user_id == current_user.id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
         
-    # Verify ownership via bot
-    bot = db.query(Bot).filter(Bot.id == doctor.bot_id, Bot.user_id == current_user.id).first()
-    if not bot:
-        # If the user doesn't own the bot that owns the doctor, they can't see/manage hours?
-        # Assuming current_user is the admin/owner.
-        raise HTTPException(status_code=403, detail="Not authorized")
         
     return db.query(BusinessHour).filter(BusinessHour.doctor_id == doctor_id).all()
 
@@ -45,14 +39,9 @@ def create_business_hour(
     """
     Create a business hour entry for a doctor.
     """
-    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.user_id == current_user.id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
-
-    # Verify ownership via bot
-    bot = db.query(Bot).filter(Bot.id == doctor.bot_id, Bot.user_id == current_user.id).first()
-    if not bot:
-        raise HTTPException(status_code=403, detail="Not authorized")
         
     business_hour = BusinessHour(
         **hour_in.model_dump(),
@@ -79,13 +68,9 @@ def update_business_hour(
         raise HTTPException(status_code=404, detail="Business hour not found")
         
     # Verify ownership via doctor -> bot
-    doctor = db.query(Doctor).filter(Doctor.id == hour.doctor_id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == hour.doctor_id, Doctor.user_id == current_user.id).first()
     if not doctor:
          raise HTTPException(status_code=404, detail="Doctor not found for this business hour")
-
-    bot = db.query(Bot).filter(Bot.id == doctor.bot_id, Bot.user_id == current_user.id).first()
-    if not bot:
-        raise HTTPException(status_code=403, detail="Not authorized")
         
     update_data = hour_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -111,13 +96,9 @@ def delete_business_hour(
         raise HTTPException(status_code=404, detail="Business hour not found")
         
     # Verify ownership
-    doctor = db.query(Doctor).filter(Doctor.id == hour.doctor_id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == hour.doctor_id, Doctor.user_id == current_user.id).first()
     if not doctor:
          raise HTTPException(status_code=404, detail="Doctor not found for this business hour")
-
-    bot = db.query(Bot).filter(Bot.id == doctor.bot_id, Bot.user_id == current_user.id).first()
-    if not bot:
-        raise HTTPException(status_code=403, detail="Not authorized")
         
     db.delete(hour)
     db.commit()

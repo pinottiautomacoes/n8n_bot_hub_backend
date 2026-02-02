@@ -21,15 +21,10 @@ def read_blocked_periods(
     """
     Get blocked periods for a specific doctor.
     """
-    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.user_id, current_user.id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
 
-    # Verify ownership via bot
-    bot = db.query(Bot).filter(Bot.id == doctor.bot_id, Bot.user_id == current_user.id).first()
-    if not bot:
-        raise HTTPException(status_code=403, detail="Not authorized")
-        
     return db.query(BlockedPeriod).filter(BlockedPeriod.doctor_id == doctor_id).all()
 
 @router.post("/doctors/{doctor_id}/blocked-periods", response_model=BlockedPeriodSchema)
@@ -43,14 +38,9 @@ def create_blocked_period(
     """
     Create a blocked period for a doctor.
     """
-    doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.user_id == current_user.id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
-        
-    # Verify ownership via bot
-    bot = db.query(Bot).filter(Bot.id == doctor.bot_id, Bot.user_id == current_user.id).first()
-    if not bot:
-        raise HTTPException(status_code=403, detail="Not authorized")
         
     blocked_period = BlockedPeriod(
         **period_in.model_dump(exclude={"doctor_id"}), # doctor_id from path overrides or should match
@@ -77,13 +67,9 @@ def update_blocked_period(
         raise HTTPException(status_code=404, detail="Blocked period not found")
         
     # Verify ownership
-    doctor = db.query(Doctor).filter(Doctor.id == period.doctor_id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == period.doctor_id, Doctor.user_id == current_user.id).first()
     if not doctor:
          raise HTTPException(status_code=404, detail="Doctor not found for this period")
-
-    bot = db.query(Bot).filter(Bot.id == doctor.bot_id, Bot.user_id == current_user.id).first()
-    if not bot:
-        raise HTTPException(status_code=403, detail="Not authorized")
         
     update_data = period_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -109,13 +95,9 @@ def delete_blocked_period(
         raise HTTPException(status_code=404, detail="Blocked period not found")
         
     # Verify ownership
-    doctor = db.query(Doctor).filter(Doctor.id == period.doctor_id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == period.doctor_id, Doctor.user_id == current_user.id).first()
     if not doctor:
          raise HTTPException(status_code=404, detail="Doctor not found for this period")
-
-    bot = db.query(Bot).filter(Bot.id == doctor.bot_id, Bot.user_id == current_user.id).first()
-    if not bot:
-        raise HTTPException(status_code=403, detail="Not authorized")
         
     db.delete(period)
     db.commit()
