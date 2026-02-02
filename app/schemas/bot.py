@@ -10,14 +10,12 @@ class BotBase(BaseModel):
     
     # Instance Info
     instance_name: Optional[str] = None
-    instance_token: Optional[str] = None
     
     # Settings
     personality: Optional[str] = None
     company_info: Optional[str] = None
     enabled: bool = True
     timezone: str = "America/Sao_Paulo"
-    appointment_duration: int = 30
 
 # Properties to receive via API on creation
 class BotCreate(BotBase):
@@ -29,7 +27,6 @@ class BotUpdate(BotBase):
     enabled: Optional[bool] = None
     personality: Optional[str] = None
     company_info: Optional[str] = None
-    appointment_duration: Optional[int] = None
 
 # Properties shared by models stored in DB
 class BotInDBBase(BotBase):

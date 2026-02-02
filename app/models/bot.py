@@ -18,7 +18,6 @@ class Bot(Base):
     
     # Instance Info
     instance_name = Column(String, nullable=True)
-    instance_token = Column(String, nullable=True)
     
     # Settings
     personality = Column(Text, nullable=True)
