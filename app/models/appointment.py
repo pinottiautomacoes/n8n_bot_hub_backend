@@ -11,6 +11,8 @@ class Appointment(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     bot_id = Column(UUID(as_uuid=True), ForeignKey("bots.id", ondelete="CASCADE"), nullable=False, index=True)
+    doctor_id = Column(UUID(as_uuid=True), ForeignKey("doctors.id", ondelete="CASCADE"), nullable=True, index=True)
+    service_id = Column(UUID(as_uuid=True), ForeignKey("services.id", ondelete="CASCADE"), nullable=True, index=True)
     contact_id = Column(UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False, index=True)
     
     title = Column(String, nullable=False)
@@ -24,6 +26,8 @@ class Appointment(Base):
     
     # Relationships
     bot = relationship("Bot", back_populates="appointments")
+    doctor = relationship("Doctor", back_populates="appointments")
+    service = relationship("Service", back_populates="appointments")
     contact = relationship("Contact", back_populates="appointments")
     
     def __repr__(self):

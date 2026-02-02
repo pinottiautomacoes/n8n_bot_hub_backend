@@ -5,6 +5,8 @@ from uuid import UUID
 
 class AppointmentBase(BaseModel):
     contact_id: UUID
+    doctor_id: Optional[UUID] = None
+    service_id: Optional[UUID] = None
     title: str
     description: Optional[str] = None
     start_time: datetime

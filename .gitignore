@@ -37,9 +37,6 @@ venv.bak/
 *.swp
 *.swo
 *~
-*.md
-.md
-/*.md
 /.agent
 
 # Alembic

@@ -9,6 +9,8 @@ from app.models.contact import Contact
 from app.models.appointment import Appointment
 from app.models.blocked_period import BlockedPeriod
 from app.models.business_hour import BusinessHour
+from app.models.doctor import Doctor
+from app.models.service import Service
 from app.schemas.appointment import Appointment as AppointmentSchema, AppointmentCreate, AppointmentUpdate, AppointmentResponse, AvailableSlotsResponse, AvailableTimeSlot
 from zoneinfo import ZoneInfo
 from app.api.api_v1.endpoints.auth import get_current_user
@@ -20,6 +22,7 @@ def read_appointments(
     *,
     db: Session = Depends(get_db),
     bot_id: Optional[str] = None,
+    doctor_id: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     skip: int = 0,
@@ -41,6 +44,9 @@ def read_appointments(
         # Return all appointments for all user's bots
         query = query.join(Bot).filter(Bot.user_id == current_user.id)
         
+    if doctor_id:
+        query = query.filter(Appointment.doctor_id == doctor_id)
+
     if start_date:
         query = query.filter(Appointment.start_time >= datetime.combine(start_date, datetime.min.time()))
     if end_date:
@@ -55,10 +61,11 @@ def get_available_slots(
     db: Session = Depends(get_db),
     instance_name: str = Query(..., alias="instanceName"),
     date_param: date = Query(..., alias="date"),
+    doctor_id: str = Query(..., alias="doctorId"),
+    service_id: str = Query(..., alias="serviceId")
 ):
     """
-    Get available time slots for a specific bot instance and date.
-    Checks business hours, blocked periods, and existing appointments.
+    Get available time slots for a specific doctor and service on a date.
     """
     # 1. Find Bot
     bot = db.query(Bot).filter(Bot.instance_name == instance_name).first()
@@ -67,32 +74,39 @@ def get_available_slots(
 
     if not bot.enabled:
         raise HTTPException(status_code=400, detail="Bot is disabled")
+        
+    # 2. Find Doctor & Service
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.bot_id == bot.id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found for this bot")
+        
+    service = db.query(Service).filter(Service.id == service_id, Service.bot_id == bot.id).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found for this bot")
 
-    # 2. Setup Timezone
+    # 3. Setup Timezone
     try:
         tz = ZoneInfo(bot.timezone)
     except Exception:
         tz = ZoneInfo("America/Sao_Paulo")  # Fallback
 
-    # 3. Determine Business Hours for the day
+    # 4. Determine Business Hours for the Doctor
     # n8n/User request: 0=Sunday, 1=Monday, ... 6=Saturday
     # Python date.weekday(): 0=Monday, ... 6=Sunday
     # Mapping: (python_weekday + 1) % 7 => 0=Sunday, 1=Monday
     weekday = (date_param.weekday() + 1) % 7
     
     business_hour = db.query(BusinessHour).filter(
-        BusinessHour.bot_id == bot.id,
+        BusinessHour.doctor_id == doctor.id,
         BusinessHour.weekday == weekday,
         BusinessHour.is_available == True
     ).first()
 
     if not business_hour:
-        # Closed on this day
+        # Doctor Closed on this day
         return AvailableSlotsResponse(available_slots=[])
 
     # Convert Business Hours to UTC for the specific date
-    # Note: business_hour.start_time is a time object (naive)
-    
     # Create naive datetime from date + time
     bh_start_naive = datetime.combine(date_param, business_hour.start_time)
     bh_end_naive = datetime.combine(date_param, business_hour.end_time)
@@ -105,35 +119,33 @@ def get_available_slots(
     open_start_utc = bh_start_local.astimezone(ZoneInfo("UTC"))
     open_end_utc = bh_end_local.astimezone(ZoneInfo("UTC"))
 
-    # If end time is before start time (e.g. crossing midnight), handle it? 
-    # Current logic assumes same-day business hours logic for simplicity.
     if open_end_utc <= open_start_utc:
-         # If it wrapped around, we might need to handle it. 
-         # Assuming simple 9-5 for now.
+         # Handle wrap around if needed
          pass
 
-    # 4. Fetch Busy Intervals (Appointments & Blocked Periods)
-    # Filter for anything overlapping the open window
+    # 5. Fetch Busy Intervals
+    # Appointments for this Doctor
+    # (Assuming doctor can't be in two places, even on different bots? Doctors are scoped to Bot currently)
     
-    # Appointments
     appointments = db.query(Appointment).filter(
-        Appointment.bot_id == bot.id,
+        Appointment.doctor_id == doctor.id,
         Appointment.status == "active",
-        Appointment.start_time < open_end_utc.replace(tzinfo=None), # DB is usually naive UTC
+        Appointment.start_time < open_end_utc.replace(tzinfo=None), 
         Appointment.end_time > open_start_utc.replace(tzinfo=None)
     ).all()
 
-    # Blocked Periods
+    # Blocked Periods (Global for Bot? Or Doctor specific? Assuming Global Bot Block for now based on legacy)
+    # If blocked periods should be doctor specific, that logic would need change.
+    # Current assumption: BlockedPeriod blocks the whole bot (holidays etc).
     blocked_periods = db.query(BlockedPeriod).filter(
         BlockedPeriod.bot_id == bot.id,
         BlockedPeriod.start_time < open_end_utc.replace(tzinfo=None),
         BlockedPeriod.end_time > open_start_utc.replace(tzinfo=None)
     ).all()
 
-    # 5. Process Availability
+    # 6. Process Availability
     busy_intervals = []
     
-    # Helper to standardize to aware UTC
     def to_aware_utc(dt):
         if dt.tzinfo is None:
             return dt.replace(tzinfo=ZoneInfo("UTC"))
@@ -143,7 +155,7 @@ def get_available_slots(
         start = to_aware_utc(appt.start_time)
         end = to_aware_utc(appt.end_time)
         busy_intervals.append((start, end))
-
+        
     for bp in blocked_periods:
         start = to_aware_utc(bp.start_time)
         end = to_aware_utc(bp.end_time)
@@ -154,8 +166,8 @@ def get_available_slots(
 
     available_slots = []
     
-    # 6. Generate fixed slots
-    duration = timedelta(minutes=bot.appointment_duration)
+    # 7. Generate fixed slots based on Service Duration
+    duration = timedelta(minutes=service.duration)
     current_slot_start = open_start_utc
     
     sp_tz = ZoneInfo("America/Sao_Paulo")
@@ -168,8 +180,6 @@ def get_available_slots(
         is_conflicted = False
         
         for busy_start, busy_end in busy_intervals:
-            # Check for overlap:
-            # (StartA < EndB) and (EndA > StartB)
             if busy_start < current_slot_end and busy_end > current_slot_start:
                 is_conflicted = True
                 break
@@ -203,11 +213,9 @@ def get_appointments_by_contact(
     ).first()
     
     if not contact:
-        # If contact doesn't exist, they can't have appointments
         return []
 
     # 3. Find Upcoming Appointments
-    # Ensure they are active and in the future
     current_time_utc = datetime.utcnow()
     
     appointments = db.query(Appointment).filter(
@@ -224,7 +232,7 @@ def create_appointment(
     *,
     db: Session = Depends(get_db),
     appointment_in: AppointmentCreate,
-    bot_id: str, # From query or inferred from contact? Better explicit.
+    bot_id: str,
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -239,6 +247,23 @@ def create_appointment(
     contact = db.query(Contact).filter(Contact.id == appointment_in.contact_id, Contact.bot_id == bot_id).first()
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found for this bot")
+
+    # Verify Doctor and Service if provided (or required?)
+    # User said "must be related", so we should probably validate deeply.
+    if appointment_in.doctor_id:
+        doctor = db.query(Doctor).filter(Doctor.id == appointment_in.doctor_id, Doctor.bot_id == bot_id).first()
+        if not doctor:
+            raise HTTPException(status_code=404, detail="Doctor not found for this bot")
+    else:
+        # Should we require it? "must be related". I'll enforce it.
+        raise HTTPException(status_code=400, detail="Doctor ID is required")
+        
+    if appointment_in.service_id:
+        service = db.query(Service).filter(Service.id == appointment_in.service_id, Service.bot_id == bot_id).first()
+        if not service:
+            raise HTTPException(status_code=404, detail="Service not found for this bot")
+    else:
+         raise HTTPException(status_code=400, detail="Service ID is required")
 
     appointment = Appointment(
         **appointment_in.model_dump(),

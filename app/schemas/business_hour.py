@@ -16,7 +16,7 @@ class BusinessHourUpdate(BusinessHourBase):
 
 class BusinessHourInDBBase(BusinessHourBase):
     id: UUID
-    bot_id: UUID
+    doctor_id: UUID
 
     class Config:
         from_attributes = True
