@@ -28,7 +28,7 @@ api_router.include_router(appointments.router, prefix="/appointments", tags=["ap
 api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"])
 
 # Blocked Periods routes
-api_router.include_router(blocked_periods.router, prefix="/blocked-periods", tags=["blocked-periods"])
+api_router.include_router(blocked_periods.router, tags=["blocked-periods"])
 
 # Doctor routes
 api_router.include_router(doctors.router, tags=["doctors"])

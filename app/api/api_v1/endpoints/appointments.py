@@ -134,11 +134,10 @@ def get_available_slots(
         Appointment.end_time > open_start_utc.replace(tzinfo=None)
     ).all()
 
-    # Blocked Periods (Global for Bot? Or Doctor specific? Assuming Global Bot Block for now based on legacy)
-    # If blocked periods should be doctor specific, that logic would need change.
-    # Current assumption: BlockedPeriod blocks the whole bot (holidays etc).
+    # Blocked Periods
+    # Now filtered by Doctor
     blocked_periods = db.query(BlockedPeriod).filter(
-        BlockedPeriod.bot_id == bot.id,
+        BlockedPeriod.doctor_id == doctor.id,
         BlockedPeriod.start_time < open_end_utc.replace(tzinfo=None),
         BlockedPeriod.end_time > open_start_utc.replace(tzinfo=None)
     ).all()
