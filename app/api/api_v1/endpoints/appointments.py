@@ -175,45 +175,6 @@ def get_available_slots(
 
     return AvailableSlotsResponse(available_slots=available_slots)
 
-@router.get("/by-contact", response_model=List[AppointmentResponse])
-def get_appointments_by_contact(
-    *,
-    db: Session = Depends(get_db),
-    instance_name: str = Query(..., alias="instanceName"),
-    contact_phone: str = Query(..., alias="contactNumber"),
-):
-    """
-    Get all upcoming appointments for a contact by phone number.
-    Filters by the Bot's User to find the correct Contact.
-    """
-    # 1. Find Bot
-    bot = db.query(Bot).filter(Bot.instance_name == instance_name).first()
-    if not bot:
-        raise HTTPException(status_code=404, detail="Bot instance not found")
-
-    # 2. Find Contact via User
-    # Contact is now linked to User (bot.user_id)
-    contact = db.query(Contact).filter(
-        Contact.phone == contact_phone,
-        Contact.user_id == bot.user_id
-    ).first()
-    
-    if not contact:
-        return []
-
-    # 3. Find Upcoming Appointments
-    # We might want to filter only appointments related to this bot? 
-    # Since Appointment -> Doctor -> Bot, we can join.
-    current_time_utc = datetime.utcnow()
-    
-    appointments = db.query(Appointment).join(Doctor).filter(
-        Appointment.contact_id == contact.id,
-        Doctor.bot_id == bot.id, # Encapsulate to this bot
-        Appointment.status == "active",
-        Appointment.start_time >= current_time_utc
-    ).order_by(Appointment.start_time.asc()).all()
-    
-    return appointments
 
 @router.post("/", response_model=AppointmentResponse)
 def create_appointment(
@@ -230,8 +191,6 @@ def create_appointment(
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
 
-    # Verify Doctor
-    # Doctor must belong to a bot owned by current_user.
     if not appointment_in.doctor_id:
          raise HTTPException(status_code=400, detail="Doctor ID is required")
          
@@ -239,17 +198,12 @@ def create_appointment(
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found or authorization failed")
 
-    # Verify Service
     if not appointment_in.service_id:
          raise HTTPException(status_code=400, detail="Service ID is required")
          
     service = db.query(Service).filter(Service.id == appointment_in.service_id, Service.user_id == current_user.id).first()
     if not service:
         raise HTTPException(status_code=404, detail="Service not found or authorization failed")
-
-    # Optional: Verify Doctor and Service belong to same Bot?
-    if doctor.bot_id != service.bot_id:
-        raise HTTPException(status_code=400, detail="Doctor and Service must belong to the same Bot")
 
     appointment = Appointment(
         **appointment_in.model_dump(),
