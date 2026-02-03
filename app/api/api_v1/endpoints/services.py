@@ -54,7 +54,8 @@ def create_service(
         
     service = Service(
         **service_in.model_dump(),
-        doctor_id=doctor_id
+        doctor_id=doctor_id,
+        user_id=current_user.id
     )
     db.add(service)
     db.commit()
