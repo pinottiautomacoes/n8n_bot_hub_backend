@@ -48,7 +48,7 @@ def read_appointments(
 def get_available_slots(
     *,
     db: Session = Depends(get_db),
-    instance_name: str = Query(..., alias="instanceName"),
+    user_id: str = Query(..., alias="userId"),
     date_param: date = Query(..., alias="date"),
     doctor_id: str = Query(..., alias="doctorId"),
     service_id: str = Query(..., alias="serviceId")
@@ -56,29 +56,18 @@ def get_available_slots(
     """
     Get available time slots for a specific doctor and service on a date.
     """
-    # 1. Find Bot
-    bot = db.query(Bot).filter(Bot.instance_name == instance_name).first()
-    if not bot:
-        raise HTTPException(status_code=404, detail="Bot instance not found")
-
-    if not bot.enabled:
-        raise HTTPException(status_code=400, detail="Bot is disabled")
-        
     # 2. Find Doctor & Service
     # Ensure they belong to the bot
-    doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.bot_id == bot.id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == doctor_id, Doctor.user_id == user_id).first()
     if not doctor:
-        raise HTTPException(status_code=404, detail="Doctor not found for this bot")
+        raise HTTPException(status_code=404, detail="Doctor not found for this user")
         
-    service = db.query(Service).filter(Service.id == service_id, Service.bot_id == bot.id).first()
+    service = db.query(Service).filter(Service.id == service_id, Service.user_id == user_id).first()
     if not service:
-        raise HTTPException(status_code=404, detail="Service not found for this bot")
+        raise HTTPException(status_code=404, detail="Service not found for this user")
 
     # 3. Setup Timezone
-    try:
-        tz = ZoneInfo(bot.timezone)
-    except Exception:
-        tz = ZoneInfo("America/Sao_Paulo")  # Fallback
+    tz = ZoneInfo("America/Sao_Paulo")
 
     # 4. Determine Business Hours for the Doctor
     weekday = (date_param.weekday() + 1) % 7
@@ -114,7 +103,7 @@ def get_available_slots(
     # Only active appointments count as busy
     appointments = db.query(Appointment).filter(
         Appointment.doctor_id == doctor.id,
-        Appointment.status == "active",
+        Appointment.status != "cancelled",
         Appointment.start_time < open_end_utc.replace(tzinfo=None), 
         Appointment.end_time > open_start_utc.replace(tzinfo=None)
     ).all()
