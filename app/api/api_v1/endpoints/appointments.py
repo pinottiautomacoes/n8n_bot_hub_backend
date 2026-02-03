@@ -62,9 +62,9 @@ def get_available_slots(
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found for this user")
         
-    service = db.query(Service).filter(Service.id == service_id, Service.user_id == user_id).first()
+    service = db.query(Service).filter(Service.id == service_id, Service.doctor_id == doctor.id).first()
     if not service:
-        raise HTTPException(status_code=404, detail="Service not found for this user")
+        raise HTTPException(status_code=404, detail="Service not found for this doctor")
 
     # 3. Setup Timezone
     tz = ZoneInfo("America/Sao_Paulo")
@@ -187,12 +187,14 @@ def create_appointment(
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found or authorization failed")
 
+    # Verify Service
     if not appointment_in.service_id:
          raise HTTPException(status_code=400, detail="Service ID is required")
          
-    service = db.query(Service).filter(Service.id == appointment_in.service_id, Service.user_id == current_user.id).first()
+    # Service must belong to the doctor
+    service = db.query(Service).filter(Service.id == appointment_in.service_id, Service.doctor_id == doctor.id).first()
     if not service:
-        raise HTTPException(status_code=404, detail="Service not found or authorization failed")
+        raise HTTPException(status_code=404, detail="Service not found or does not belong to this doctor")
 
     appointment = Appointment(
         **appointment_in.model_dump(),

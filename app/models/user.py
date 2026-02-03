@@ -21,7 +21,6 @@ class User(Base):
     contacts = relationship("Contact", back_populates="user", cascade="all, delete-orphan")
     appointments = relationship("Appointment", back_populates="user", cascade="all, delete-orphan")
     doctors = relationship("Doctor", back_populates="user", cascade="all, delete-orphan")
-    services = relationship("Service", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User {self.email}>"

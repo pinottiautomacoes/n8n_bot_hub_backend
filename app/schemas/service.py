@@ -13,7 +13,7 @@ class ServiceCreate(ServiceBase):
 
 class ServiceResponse(ServiceBase):
     id: UUID4
-    user_id: UUID4
+    doctor_id: UUID4
     created_at: datetime
     updated_at: datetime
 

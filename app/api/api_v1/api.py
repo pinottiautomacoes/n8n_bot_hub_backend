@@ -34,4 +34,4 @@ api_router.include_router(blocked_periods.router, tags=["blocked-periods"])
 api_router.include_router(doctors.router, prefix="/doctors", tags=["doctors"])
 
 # Service routes
-api_router.include_router(services.router, prefix="/services", tags=["services"])
+api_router.include_router(services.router, tags=["services"])

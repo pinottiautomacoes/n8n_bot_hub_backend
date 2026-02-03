@@ -25,6 +25,7 @@ class Doctor(Base):
     appointments = relationship("Appointment", back_populates="doctor", cascade="all, delete-orphan")
     business_hours = relationship("BusinessHour", back_populates="doctor", cascade="all, delete-orphan")
     blocked_periods = relationship("BlockedPeriod", back_populates="doctor", cascade="all, delete-orphan")
+    services = relationship("Service", back_populates="doctor", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Doctor {self.name}>"
