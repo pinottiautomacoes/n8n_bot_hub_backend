@@ -235,7 +235,7 @@ def create_appointment(
     if not appointment_in.doctor_id:
          raise HTTPException(status_code=400, detail="Doctor ID is required")
          
-    doctor = db.query(Doctor).filter(Doctor.id == appointment_in.doctor_id).join(Bot).filter(Bot.user_id == current_user.id).first()
+    doctor = db.query(Doctor).filter(Doctor.id == appointment_in.doctor_id, Doctor.user_id == current_user.id).first()
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found or authorization failed")
 
@@ -243,7 +243,7 @@ def create_appointment(
     if not appointment_in.service_id:
          raise HTTPException(status_code=400, detail="Service ID is required")
          
-    service = db.query(Service).filter(Service.id == appointment_in.service_id).join(Bot).filter(Bot.user_id == current_user.id).first()
+    service = db.query(Service).filter(Service.id == appointment_in.service_id, Service.user_id == current_user.id).first()
     if not service:
         raise HTTPException(status_code=404, detail="Service not found or authorization failed")
 
